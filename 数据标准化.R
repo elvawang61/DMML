@@ -1,4 +1,17 @@
+library(dplyr)
+# 读取数据集
+options(scipen = 999)
 data<- read.csv("/Users/yueyuebear/Desktop/DMML/group_3.csv")
+head
+# 检查缺失值
+sum(is.na(data))#无缺失值
+# 检查列的数据类型
+str(data)
+# 创建成功标准列--收入是预算的2倍，评分在7以上
+data$success <- ifelse(data$gross >= 2 * data$budget & data$imdb_score >= 7, 1, 0)
+# 统计成功电影的数量
+success_count <- sum(data$success == 1)
+print(success_count)
 # 标准化处理
 data$gross <- scale(data$gross)
 data$budget <- scale(data$budget)
