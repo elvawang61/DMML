@@ -1,0 +1,177 @@
+---
+title: "Movie Success Prediction with Linear Discriminant Analysis"
+author: "Your Name"
+date: today
+format:
+  html:
+    toc: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(tidyverse)
+library(caret)
+library(MASS)
+library(pROC)
+library(ggpubr)
+library(ggplot2)
+library(dplyr)
+set.seed(123)
+```
+
+```{r}
+#| label: data-prep
+#| echo: true
+# 读取数据
+data <- read_csv("C:/Users/10754/Desktop/group_3.csv")
+# 检查列的数据类型
+str(data)
+```
+
+```{r}
+# 创建成功标准列--收入是预算的2倍，评分在7以上
+data$success <- ifelse(data$gross >= 2 * data$budget & data$imdb_score >= 7, 1, 0)
+# 统计成功电影的数量
+success_count <- sum(data$success == 1)
+print(success_count)
+```
+
+```{r}
+
+# 创建新的变量：演员点赞总数
+data$actor_total_likes <- rowSums(data[, c("actor_1_facebook_likes",
+                                           "actor_2_facebook_likes",
+                                           "actor_3_facebook_likes")], na.rm = TRUE)
+
+# 选择需要的变量
+vars <- c("gross", "budget", "imdb_score", "duration", "director_facebook_likes",
+          "actor_total_likes", "title_year", "success")
+
+data_model=data[,vars]
+
+#Remove missing values
+data_model=na.omit(data_model)
+
+#Standardised numeric variables (excluding success)
+numeric_vars=setdiff(names(data_model),"success")
+data_model[numeric_vars]=scale(data_model[numeric_vars])
+
+```
+
+```{r}
+# 设置随机种子以确保结果可重复
+set.seed(123)
+
+# 将数据集分为训练集和测试集（80%训练集，20%测试集）
+train_index <- sample(1:nrow(data_model), 0.8 * nrow(data_model))
+train_data <- data_model[train_index, ]
+test_data <- data_model[-train_index, ]
+```
+
+```{r}
+# 保存标准化后的数据
+write.csv(data, "processed_data.csv", row.names = FALSE)
+
+# 读取处理后的数据
+processed_data <- read.csv("processed_data.csv")
+
+# 设置随机种子以确保结果可重复
+set.seed(123)
+
+# 将数据集分为训练集和测试集（80%训练集，20%测试集）
+train_index <- sample(1:nrow(processed_data), 0.8 * nrow(processed_data))
+train_data <- processed_data[train_index, ]
+test_data <- processed_data[-train_index, ]
+```
+
+```{r}
+# 训练LDA模型
+lda_model <- lda(success ~ gross + budget + imdb_score + duration + 
+                   director_facebook_likes + actor_total_likes + title_year, 
+                 data = train_data)
+
+# 打印模型摘要
+lda_model
+```
+
+```{r}
+# 重新绘制LDA结果
+plot(lda_model, col = as.integer(train_data$success) + 1, main = "LDA for Movie Success")
+```
+
+```{r}
+# 在测试数据上进行预测
+lda_predictions <- predict(lda_model, test_data)
+
+# 转换为因子
+lda_predictions$class <- as.factor(lda_predictions$class)
+test_data$success <- as.factor(test_data$success)
+
+# 混淆矩阵
+confusion <- confusionMatrix(lda_predictions$class, test_data$success)
+print(confusion)
+
+# 检查模型准确率
+lda_accuracy <- mean(lda_predictions$class == test_data$success)
+cat("LDA模型准确率:", round(lda_accuracy * 100, 2), "%\n")
+
+# 计算其他评估指标
+precision <- confusion$byClass["Pos Pred Value"]
+recall <- confusion$byClass["Sensitivity"]
+f1_score <- 2 * ((precision * recall) / (precision + recall))
+cat("精确率:", round(precision, 4), "\n")
+cat("召回率:", round(recall, 4), "\n")
+cat("F1分数:", round(f1_score, 4), "\n")
+
+```
+
+```{r}
+# 转换混淆矩阵为数据框
+conf_matrix <- as.data.frame(confusion$table)
+
+# 绘制热力图
+ggplot(data = conf_matrix, aes(x = Prediction, y = Reference, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "white", size = 5) +
+  scale_fill_gradient(low = "#D6EAF8", high = "#2E86C1") +
+  theme_minimal() +
+  labs(title = "Confusion Matrix Heatmap", x = "Predicted Class", y = "Actual Class")
+```
+
+```{r}
+# 计算成功类的概率
+lda_prob <- lda_predictions$posterior[, 2]
+
+# 生成ROC曲线
+roc_curve <- roc(test_data$success, lda_prob)
+
+# 绘制ROC曲线
+plot(roc_curve, col = "blue", main = "ROC Curve for LDA Model")
+
+# 计算AUC
+auc_value <- auc(roc_curve)
+cat("AUC值:", round(auc_value, 4), "\n")
+```
+
+```{r}
+# 结果摘要
+cat("LDA模型摘要:\n")
+cat("- 准确率:", round(lda_accuracy * 100, 2), "%\n")
+cat("- 精确率:", round(precision, 4), "\n")
+cat("- 召回率:", round(recall, 4), "\n")
+cat("- F1分数:", round(f1_score, 4), "\n")
+cat("- AUC值:", round(auc_value, 4), "\n")
+
+# 如果尝试了其他模型（例如SVM、Random Forest），可以在这里进行比较
+# 示例：
+# cat("比较不同模型的AUC:\n")
+# cat("- LDA: ", round(auc_value, 4), "\n")
+# cat("- SVM: 0.85\n")
+# cat("- Random Forest: 0.88\n")
+```
