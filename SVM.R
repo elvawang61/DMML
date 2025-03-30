@@ -15,7 +15,7 @@ data$actor_total_likes=rowSums(data[,c("actor_1_facebook_likes",
                                        "actor_3_facebook_likes")],na.rm=TRUE)
 
 #Selection of variables for modelling
-vars=c("budget","imdb_score","duration","director_facebook_likes",
+vars=c("gross","budget","imdb_score","duration","director_facebook_likes",
        "actor_total_likes","title_year","success")
 data_model=data[,vars]
 
@@ -30,7 +30,7 @@ data_model[numeric_vars]=scale(data_model[numeric_vars])
 set.seed(123)
 
 #Divide the dataset into a training set and a test set (80% training set, 20% test set)
-train_index=sample(1:nrow(data_model), 0.8 * nrow(data_model))
+train_index=sample(1:nrow(data_model),0.8*nrow(data_model))
 train_data=data_model[train_index, ]
 test_data=data_model[-train_index, ]
 
